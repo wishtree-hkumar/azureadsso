@@ -1,0 +1,29 @@
+{
+    "name": "wishtreehkumar/azureadsso",
+    "description": "Azure AD SSO Login flow",
+    "type": "project",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Wishtreehkumar\\Azureadsso\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Hitesh"
+        }
+    ],
+    "require": {
+        "phpseclib/phpseclib": "2.0"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Wishtreehkumar\\Azureadsso\\ServiceProvider"
+            ],
+            "aliases": {
+                "AzureADB2CToken": "Wishtreehkumar\\Azureadsso\\Facade\\AzureADB2CToken"
+            }
+        }
+    }
+}
