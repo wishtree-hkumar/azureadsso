@@ -1,5 +1,5 @@
 # Project Description
-This package will help you easily implement the Azure AD SSO Login and Graph API Access.
+This package will help you easily implement the Azure Active Directory SSO Login and Graph API Access.
 
 ## Installation Steps
 ----------
