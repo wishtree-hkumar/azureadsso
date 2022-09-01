@@ -1,7 +1,12 @@
 {
     "name": "wishtreehkumar/azureadsso",
     "description": "Azure AD SSO Login flow",
-    "type": "project",
+    "keywords": [
+        "Azure",
+        "SSO",
+        "B2C"
+    ],
+    "homepage": "https://github.com/wishtree-hkumar/azureadsso",
     "license": "MIT",
     "autoload": {
         "psr-4": {
@@ -10,7 +15,9 @@
     },
     "authors": [
         {
-            "name": "Hitesh"
+            "name": "Hitesh",
+            "email": "hitesh.kumar@wishtreetech.com",
+            "role": "Developer"
         }
     ],
     "require": {
@@ -25,5 +32,10 @@
                 "AzureADB2CToken": "Wishtreehkumar\\Azureadsso\\Facade\\AzureADB2CToken"
             }
         }
-    }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
 }
