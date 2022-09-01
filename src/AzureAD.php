@@ -4,6 +4,8 @@ namespace Wishtreehkumar\Azureadsso;
 
 use phpseclib\Crypt\RSA;
 use Illuminate\Support\Facades\Http;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 
 /**
  * Clone code from the below library Azure Sample
@@ -28,6 +30,22 @@ class AzureAD
     {
         $typeL = strtolower($type);
 
+        if ($typeL == "normal") {
+
+            $response = $this->graphApi("get", "me", [], $token);
+
+            if ($response->failed()) {
+
+                $this->payload = null;
+                $this->isAuthenticated = false;
+                return $this;
+            }
+
+            $this->payload = $response->object();
+            $this->isAuthenticated = true;
+            return $this;
+        }
+
         $this->clientID = config('azure.client_id');
 
         $this->metadata = file_get_contents(config("azure.openid_config_{$typeL}"));
@@ -47,7 +65,7 @@ class AzureAD
     {
         $typeL = strtolower($type);
 
-        return config("azure.authz_ept_{$typeL}").'?'.http_build_query(config("azure.authz_ept_{$typeL}_pram"));
+        return config("azure.authz_ept_{$typeL}") . '?' . http_build_query(config("azure.authz_ept_{$typeL}_pram"));
     }
 
     public function generatePassword()
@@ -79,14 +97,17 @@ class AzureAD
         return $response->object();
     }
 
-    public function graphApi($method, $endPoint, $body)
+    public function graphApi($method, $endPoint, $body = [], $accessToken = null)
     {
-        $response = $this->getRopcToken();
+        if (is_null($accessToken)) {
+            $response = $this->getRopcToken();
+            $accessToken = $response->access_token;
+        }
 
-        return Http::withToken($response->access_token)->withHeaders([
+        return Http::withToken($accessToken)->withHeaders([
             'Content-type' => 'application/json',
         ])
-        ->$method("https://graph.microsoft.com/v1.0/{$endPoint}", $body);
+            ->$method("https://graph.microsoft.com/v1.0/{$endPoint}", $body);
     }
 
     public function isAuthenticated()
@@ -98,23 +119,26 @@ class AzureAD
     {
         if ($this->isAuthenticated) {
 
-            return json_decode($this->payload, true);
+            if (gettype($this->payload) == "object") {
+                return (array) $this->payload;
+            }
 
+            return json_decode($this->payload, true);
         }
 
         return null;
-        
     }
 
-    
-    private function loadKeysFromAzure($string_microsoftPublicKeyURL) {
+
+    private function loadKeysFromAzure($string_microsoftPublicKeyURL)
+    {
         $array_keys = array();
 
         $jsonString_microsoftPublicKeys = file_get_contents($string_microsoftPublicKeyURL);
         $array_microsoftPublicKeys = json_decode($jsonString_microsoftPublicKeys, true);
 
-        foreach($array_microsoftPublicKeys['keys'] as $array_publicKey) {
-            $string_certText = "-----BEGIN CERTIFICATE-----\r\n".chunk_split($array_publicKey['x5c'][0],64)."-----END CERTIFICATE-----\r\n";
+        foreach ($array_microsoftPublicKeys['keys'] as $array_publicKey) {
+            $string_certText = "-----BEGIN CERTIFICATE-----\r\n" . chunk_split($array_publicKey['x5c'][0], 64) . "-----END CERTIFICATE-----\r\n";
             $array_keys[$array_publicKey['kid']] = $this->getPublicKeyFromX5C($string_certText);
         }
 
@@ -122,7 +146,8 @@ class AzureAD
     }
 
 
-    private function getPublicKeyFromX5C($string_certText) {
+    private function getPublicKeyFromX5C($string_certText)
+    {
         $object_cert = openssl_x509_read($string_certText);
         $object_pubkey = openssl_pkey_get_public($object_cert);
         $array_publicKey = openssl_pkey_get_details($object_pubkey);
@@ -193,6 +218,11 @@ class AzureAD
         // Verify Signature
         $to_verify_data = $this->aToken[0] . '.' . $this->aToken[1];
         $to_verify_sig = base64_decode($this->convertBase64urlToBase64(($this->aToken[2])));
+
+        $decoded = JWT::decode($to_verify_data, new Key($public_key, 'RS256'));
+
+        dd($decoded);
+
 
         $verified = openssl_verify($to_verify_data, $to_verify_sig, $public_key, OPENSSL_ALGO_SHA256);
 

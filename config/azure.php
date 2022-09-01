@@ -15,7 +15,7 @@ return [
     'authz_ept_normal' => env('AZURE_AD_AUTHZ_EPT_NORMAL', ''),
     'authz_ept_normal_pram' => [
         'client_id' => env('AZURE_AD_CLIENT_ID', ''),
-        'response_type' => 'id_token',
+        'response_type' => 'token',
         'redirect_uri' => env('AZURE_AD_CALLBACK_URI'.''),
         'response_mode' => 'form_post',
         'nonce' => 'defaultNonce',
