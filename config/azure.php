@@ -16,7 +16,7 @@ return [
         'scope' => 'email profile openid offline_access User.Read',
     ],
 
-    'authz_ept_b2c' => "https://".env('AZURE_AD_TENANT_NAME').".b2clogin.com/".env('AZURE_AD_TENANT_NAME').".onmicrosoft.com/".env('AZURE_AD_POLICY_NAME')."/oauth2/v2.0/authorize",
+    "authz_ept_b2c" => "https://".env('AZURE_AD_TENANT_NAME').".b2clogin.com/".env('AZURE_AD_TENANT_NAME').".onmicrosoft.com/".env('AZURE_AD_POLICY_NAME')."/oauth2/v2.0/authorize",
 
     'authz_ept_b2c_pram' => [
         'client_id' => env('AZURE_AD_CLIENT_ID', ''),
