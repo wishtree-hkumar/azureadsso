@@ -4,8 +4,6 @@ namespace Wishtreehkumar\Azureadsso;
 
 use phpseclib\Crypt\RSA;
 use Illuminate\Support\Facades\Http;
-use Firebase\JWT\JWT;
-use Firebase\JWT\Key;
 
 /**
  * Clone code from the below library Azure Sample
@@ -24,38 +22,34 @@ class AzureAD
 
     private $metadata;
 
+    private $token;
+    private $type;
+
     private $isAuthenticated = false;
 
     public function construct($token, $type)
     {
-        $typeL = strtolower($type);
+        try {
 
-        if ($typeL == "normal") {
+            $this->token = $token;
+            $this->type = strtolower($type);
 
-            $response = $this->graphApi("get", "me", [], $token);
+            $this->clientID = config('azure.client_id');
 
-            if ($response->failed()) {
+            $this->metadata = file_get_contents(config("azure.openid_config_{$this->type}"));
 
-                $this->payload = null;
-                $this->isAuthenticated = false;
-                return $this;
+            $this->splitIdToken();
+
+            if (($this->validateSignature() == true) && ($this->validateClaims() == true)) {
+                $this->isAuthenticated =  true;
+            } else {
+                $this->isAuthenticated =  false;
             }
 
-            $this->payload = $response->object();
-            $this->isAuthenticated = true;
-            return $this;
-        }
+        } catch (\Throwable $th) {
+            report($th);
 
-        $this->clientID = config('azure.client_id');
-
-        $this->metadata = file_get_contents(config("azure.openid_config_{$typeL}"));
-
-        $this->splitIdToken($token);
-
-        if (($this->validateSignature() == true) && ($this->validateClaims() == true)) {
-            $this->isAuthenticated =  true;
-        } else {
-            $this->isAuthenticated =  false;
+            abort(500, $th->getMessage());
         }
 
         return $this;
@@ -63,9 +57,9 @@ class AzureAD
 
     public function generateLoginUrl($type)
     {
-        $typeL = strtolower($type);
+        $type = strtolower($type);
 
-        return config("azure.authz_ept_{$typeL}") . '?' . http_build_query(config("azure.authz_ept_{$typeL}_pram"));
+        return config("azure.authz_ept_{$type}") . '?' . http_build_query(config("azure.authz_ept_{$type}_pram"));
     }
 
     public function generatePassword()
@@ -73,7 +67,6 @@ class AzureAD
         $symbols = '!@#$%^&*()_+=-';
         $numbers = '0123456789';
         $alphabates = 'abcdefghijklmnopqrstuvwxyz';
-        $numbers = '0123456789';
 
         $symShuffle = substr(str_shuffle($symbols), -4);
         $numShuffle = substr(str_shuffle($numbers), -2);
@@ -87,27 +80,38 @@ class AzureAD
 
     private function getRopcToken()
     {
-        $response = Http::asForm()->post(config('azure.token_ept_normal'), [
-            'client_id' => config('azure.client_id'),
-            'scope' => 'https://graph.microsoft.com/.default',
-            'client_secret' => config('azure.client_secret'),
-            'grant_type' => 'client_credentials',
-        ]);
+        try {
+            $response = Http::asForm()->post(config('azure.token_ept_normal'), [
+                'client_id' => config('azure.client_id'),
+                'scope' => 'https://graph.microsoft.com/.default',
+                'client_secret' => config('azure.client_secret'),
+                'grant_type' => 'client_credentials',
+            ]);
 
-        return $response->object();
+            return $response->object();
+        } catch (\Throwable $th) {
+            report($th);
+
+            abort(500, $th->getMessage());
+        }
     }
 
     public function graphApi($method, $endPoint, $body = [], $accessToken = null)
     {
-        if (is_null($accessToken)) {
-            $response = $this->getRopcToken();
-            $accessToken = $response->access_token;
-        }
+        try {
+            if (is_null($accessToken)) {
+                $response = $this->getRopcToken();
+                $accessToken = $response->access_token;
+            }
 
-        return Http::withToken($accessToken)->withHeaders([
-            'Content-type' => 'application/json',
-        ])
-            ->$method("https://graph.microsoft.com/v1.0/{$endPoint}", $body);
+            return Http::withToken($accessToken)->withHeaders([
+                'Content-type' => 'application/json',
+            ])->$method("https://graph.microsoft.com/v1.0/{$endPoint}", $body);
+        } catch (\Throwable $th) {
+            report($th);
+
+            abort(500, $th->getMessage());
+        }
     }
 
     public function isAuthenticated()
@@ -117,47 +121,25 @@ class AzureAD
 
     public function getPayload()
     {
-        if ($this->isAuthenticated) {
+        try {
 
-            if (gettype($this->payload) == "object") {
-                return (array) $this->payload;
+            if ($this->isAuthenticated) {
+                return json_decode($this->payload, true);
             }
 
-            return json_decode($this->payload, true);
+            return null;
+
+        } catch (\Throwable $th) {
+            report($th);
+
+            abort(500, $th->getMessage());
         }
-
-        return null;
     }
 
-
-    private function loadKeysFromAzure($string_microsoftPublicKeyURL)
-    {
-        $array_keys = array();
-
-        $jsonString_microsoftPublicKeys = file_get_contents($string_microsoftPublicKeyURL);
-        $array_microsoftPublicKeys = json_decode($jsonString_microsoftPublicKeys, true);
-
-        foreach ($array_microsoftPublicKeys['keys'] as $array_publicKey) {
-            $string_certText = "-----BEGIN CERTIFICATE-----\r\n" . chunk_split($array_publicKey['x5c'][0], 64) . "-----END CERTIFICATE-----\r\n";
-            $array_keys[$array_publicKey['kid']] = $this->getPublicKeyFromX5C($string_certText);
-        }
-
-        return $array_keys;
-    }
-
-
-    private function getPublicKeyFromX5C($string_certText)
-    {
-        $object_cert = openssl_x509_read($string_certText);
-        $object_pubkey = openssl_pkey_get_public($object_cert);
-        $array_publicKey = openssl_pkey_get_details($object_pubkey);
-        return $array_publicKey['key'];
-    }
-
-    private function splitIdToken($token)
+    private function splitIdToken()
     {
         // Split the token into Header, Payload, and Signature, and decode
-        $this->aToken = explode('.', $token);
+        $this->aToken = explode('.', $this->token);
         $this->head = base64_decode($this->aToken[0]);
         $this->payload = base64_decode($this->aToken[1]);
     }
@@ -185,6 +167,36 @@ class AzureAD
 
     // Validates the RSA signature on the token
     private function validateSignature()
+    {
+        if ($this->type == "normal") {
+            return $this->validateSignatureForNormal();
+        }
+
+        return $this->validateSignatureForB2C();
+    }
+
+    private function base64UrlDecode($arg)
+    {
+        $res = $arg;
+        $res = str_replace('-', '+', $res);
+        $res = str_replace('_', '/', $res);
+        switch (strlen($res) % 4) {
+            case 0:
+                break;
+            case 2:
+                $res .= "==";
+                break;
+            case 3:
+                $res .= "=";
+                break;
+            default:
+                break;
+        }
+        $res = base64_decode($res);
+        return $res;
+    }
+
+    private function validateSignatureForB2C()
     {
         // Get kid from header
         $kid = $this->getClaim('kid', $this->head);
@@ -219,17 +231,52 @@ class AzureAD
         $to_verify_data = $this->aToken[0] . '.' . $this->aToken[1];
         $to_verify_sig = base64_decode($this->convertBase64urlToBase64(($this->aToken[2])));
 
-        $decoded = JWT::decode($to_verify_data, new Key($public_key, 'RS256'));
-
-        dd($decoded);
-
-
         $verified = openssl_verify($to_verify_data, $to_verify_sig, $public_key, OPENSSL_ALGO_SHA256);
 
         return $verified;
     }
 
-    // Validate audience, not_before, expiration_time, and issuer claims
+    private function validateSignatureForNormal()
+    {
+        $token_arr = explode('.', $this->token);
+        $headersEnc = $token_arr[0];
+        $claimsEnc = $token_arr[1];
+        $sigEnc = $token_arr[2];
+
+        // 2 base 64 url decoding
+        $headers_arr = json_decode($this->base64UrlDecode($headersEnc), TRUE);
+        $claims_arr = json_decode($this->base64UrlDecode($claimsEnc), TRUE);
+        $sig = $this->base64UrlDecode($sigEnc);
+
+        // 3 get key list
+        $keylist = $this->getJwksUriData();
+
+        $keylist_arr = json_decode($keylist, TRUE);
+
+        // By default token validate flase
+        $token_valid = 0;
+
+        foreach ($keylist_arr['keys'] as $key => $value) {
+
+            // 4 select one key
+            if ($value['kid'] == $headers_arr['kid']) {
+
+                // 5 get public key from key info
+                $cert_txt = '-----BEGIN CERTIFICATE-----' . "\n" . chunk_split($value['x5c'][0], 64) . '-----END CERTIFICATE-----';
+                $cert_obj = openssl_x509_read($cert_txt);
+                $pkey_obj = openssl_pkey_get_public($cert_obj);
+                $pkey_arr = openssl_pkey_get_details($pkey_obj);
+                $pkey_txt = $pkey_arr['key'];
+
+                // 6 validate signature
+                $token_valid = openssl_verify("{$headersEnc}.{$claimsEnc}", $sig, $pkey_txt, OPENSSL_ALGO_SHA256);
+            }
+        }
+
+        return $token_valid;
+    }
+
+    // Validate audience, notBefore, expiration_time, and issuer claims
     private function validateClaims()
     {
         $audience = $this->getClaim('aud', $this->payload); // Should be app's clientID
@@ -237,20 +284,20 @@ class AzureAD
             return false;
         }
 
-        $cur_time = time();
-        $not_before = $this->getClaim('nbf', $this->payload); // epoch time, time after which token is valid (so basically nbf < cur time < exp)
+        $curTime = time();
+        $notBefore = $this->getClaim('nbf', $this->payload); // epoch time, time after which token is valid (so basically nbf < cur time < exp)
         $expiration = $this->getClaim('exp', $this->payload); // epoch time, check that the token is still valid
-        if ($not_before > $cur_time) {
+        if ($notBefore > $curTime) {
             return false;
         }
-        if ($cur_time > $expiration) {
+        if ($curTime > $expiration) {
             return false;
         }
 
         // The Issuer Identifier for the OpenID Provider MUST exactly match the value of the iss (issuer) Claim.
-        $iss_token = $this->getClaim('iss', $this->payload);
-        $iss_metadata = $this->getClaim('issuer', $this->metadata);
-        if ($iss_token != $iss_metadata) {
+        $issToken = $this->getClaim('iss', $this->payload);
+        $issMetadata = $this->getClaim('issuer', $this->metadata);
+        if ($issToken != $issMetadata) {
             return false;
         }
 

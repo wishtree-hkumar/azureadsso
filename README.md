@@ -18,15 +18,10 @@ This package will help you easily implement the Azure AD SSO Login and Graph API
     AZURE_AD_CLIENT_ID=--
     AZURE_AD_TENANT_ID=--
 
+    AZURE_AD_TENANT_NAME=--
     AZURE_AD_POLICY_NAME=--
 
-    AZURE_AD_AUTHZ_EPT_B2C=--
-    AZURE_AD_AUTHZ_EPT_NORMAL=--
-
     AZURE_AD_CALLBACK_URI=--
-
-    AZURE_AD_OPENID_CONFIG_B2C=--
-    AZURE_AD_OPENID_CONFIG_NORMAL=--
 
 ## Generate Password
 
