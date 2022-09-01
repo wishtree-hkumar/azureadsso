@@ -4,7 +4,7 @@ This package will help you easily implement the Azure AD SSO Login and Graph API
 ## Installation Steps
 ----------
 
-    composer require .../...
+    composer require wishtreehkumar/azureadsso
 
 ### To edit config file
     php artisan vendor:publish --provider="Wishtreehkumar\Azureadsso\ServiceProvider" --tag="config"
