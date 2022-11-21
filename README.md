@@ -55,12 +55,12 @@ This package will help you easily implement the Azure Active Directory SSO Login
 
     $dataBody = [
         'accountEnabled' => true,
-        'displayName' => "Wishtree Technology",
+        'displayName' => "Your Company",
         'identities' => [
             [
                 'signInType' => 'emailAddress',
-                'issuer' => 'wtssodemo.onmicrosoft.com',
-                'issuerAssignedId' => 'wtemail@mailinator.com',
+                'issuer' => 'your_tenet.onmicrosoft.com',
+                'issuerAssignedId' => 'your_email@example.com',
             ],
         ],
         'passwordProfile' => [
